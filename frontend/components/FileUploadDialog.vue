@@ -24,6 +24,7 @@
                 Scan
             </ButtonPrimary>
         </div>
+        <LoadingScreen v-if="isLoading" />
     </dialog>
 </template>
 
@@ -33,6 +34,7 @@ const fileInput = ref(null)
 const selectedFile = ref(null)
 const isFileValid = ref(false)
 const errorMessage = ref('')
+const isLoading = ref(false)
 
 const emit = defineEmits(['file-scanned'])
 
@@ -75,7 +77,7 @@ function handleScan() {
         const formData = new FormData()
         formData.append('file', selectedFile.value)
         emit('file-scanned', formData)
-        closeDialog()
+        closeDialog() // Close the dialog after emitting the event
     }
 }
 

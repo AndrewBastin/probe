@@ -18,12 +18,12 @@
     </div>
   </div>
   <FileUploadDialog ref="fileDialog" @file-scanned="handleScannedFile" />
+
 </template>
 
 <script setup>
-
+const router = useRouter()
 const fileDialog = ref(null)
-const scanResult = ref(null)
 
 function openFileDialog() {
   fileDialog.value.openDialog()
@@ -31,18 +31,17 @@ function openFileDialog() {
 
 async function handleScannedFile(formData) {
   try {
-    scanResult.value = await $fetch('/backend/process_file', {
+    const response = await $fetch('/backend/process_file', {
       method: 'POST',
       body: formData
     })
 
-    const tracking_id = scanResult.value.tracking_id
-    
-    // Process the scan result (e.g., update UI, etc.)
+    const trackingId = response.tracking_id
+    // Navigate to insights page with tracking ID
+    router.push(`/insights?trackingId=${trackingId}`)
   } catch (error) {
     console.error('Error scanning file:', error)
     // Handle error (e.g., show error message to user)
   } 
 }
-
 </script>
