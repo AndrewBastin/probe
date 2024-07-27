@@ -1,0 +1,8 @@
+# Rust Build Artifacts
+/target
+
+# SQLx migration and caching data
+.sqlx
+
+# Local development database
+db.sqlite

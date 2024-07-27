@@ -1,0 +1,6 @@
+.git
+.sqlx
+
+target
+
+db.sqlite

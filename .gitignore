@@ -1,0 +1,11 @@
+.DS_Store
+**/*/.DS_Store
+
+node_modules
+local-db/*
+!local-db/.gitkeep
+
+.pnpm-store
+**/*/.pnpm-store
+
+.env

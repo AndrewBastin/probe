@@ -1,0 +1,92 @@
+# Rust Build Artifacts
+backend/target
+
+# SQLx migration and caching data
+backend/**/.sqlx
+
+# Local development database
+backend/**/db.sqlite
+
+# flyctl launch added from dashboard/.gitignore
+# Nuxt dev/build outputs
+dashboard/**/.output
+dashboard/**/.data
+dashboard/**/.nuxt
+dashboard/**/.nitro
+dashboard/**/.cache
+dashboard/**/dist
+
+# Node dependencies
+dashboard/**/node_modules
+
+# Logs
+dashboard/**/logs
+dashboard/**/*.log
+
+# Misc
+dashboard/**/.DS_Store
+dashboard/**/.fleet
+dashboard/**/.idea
+
+# Local env files
+dashboard/**/.env
+dashboard/**/.env.*
+!dashboard/**/.env.example
+
+# Logs
+demo/**/logs
+demo/**/*.log
+demo/**/npm-debug.log*
+demo/**/yarn-debug.log*
+demo/**/yarn-error.log*
+demo/**/pnpm-debug.log*
+demo/**/lerna-debug.log*
+
+demo/**/node_modules
+demo/**/dist
+demo/**/dist-ssr
+demo/**/*.local
+
+# Editor directories and files
+demo/**/.vscode/*
+!demo/**/.vscode/extensions.json
+demo/**/.idea
+demo/**/.DS_Store
+demo/**/*.suo
+demo/**/*.ntvs*
+demo/**/*.njsproj
+demo/**/*.sln
+demo/**/*.sw?
+
+# flyctl launch added from library/.gitignore
+# Logs
+library/**/logs
+library/**/*.log
+library/**/npm-debug.log*
+library/**/yarn-debug.log*
+library/**/yarn-error.log*
+library/**/pnpm-debug.log*
+library/**/lerna-debug.log*
+
+library/**/node_modules
+library/**/dist
+library/**/dist-ssr
+library/**/*.local
+
+# Editor directories and files
+library/**/.vscode/*
+!library/**/.vscode/extensions.json
+library/**/.idea
+library/**/.DS_Store
+library/**/*.suo
+library/**/*.ntvs*
+library/**/*.njsproj
+library/**/*.sln
+library/**/*.sw?
+
+local-db/
+
+.pnpm-store
+*/.pnpm-store
+
+fly.toml

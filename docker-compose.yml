@@ -1,0 +1,36 @@
+services:
+  # AIO service with a local sqlite db
+  local-aio:
+    build:
+      context: .
+      target: aio
+    ports:
+      - "8000:80"
+    environment:
+      - ROCKET_DATABASES={ db = { url = "local-db/local-aio-db.sqlite" } }
+      - NODE_ENV=production
+      - NUXT_PUBLIC_BACKEND_URL=http://localhost:8000/backend
+    env_file: .env
+    volumes:
+      - ./local-db:/fosshack/local-db
+
+  dev:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    ports:
+      - "8000:80"
+    environment:
+      - ROCKET_DATABASES={ db = { url = "/fosshack/local-db/dev-db.sqlite" } }
+      - NUXT_PUBLIC_BACKEND_URL=http://localhost:8000/backend
+    env_file: .env
+    volumes:
+      - .:/fosshack
+
+volumes:
+  backend:
+    name: "backend"
+  frontend:
+    name: "frontend"
+  local-db:
+    name: local-db
