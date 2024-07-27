@@ -1,3 +1,4 @@
+use controllers::DummyRoutesState;
 use rocket::fairing::AdHoc;
 use rocket_db_pools::Database;
 use models::DB;
@@ -28,5 +29,6 @@ fn rocket() -> _ {
                 rocket
             }))
         )
-        .mount("/", routes![index])
+        .manage(DummyRoutesState::default())
+        .mount("/", controllers::routes.clone())
 }
