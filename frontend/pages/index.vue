@@ -12,14 +12,37 @@
         For enthusiasts to contribute <br />
         effectively to the open-source ecosystem.</p>
       <p class="text-lg"></p>
-      <ButtonPrimary @click="$router.push('/')">
+      <ButtonPrimary @click="openFileDialog">
         Upload File
       </ButtonPrimary>
     </div>
-
-
   </div>
+  <FileUploadDialog ref="fileDialog" @file-scanned="handleScannedFile" />
 </template>
 
-<script setup lang="ts">
+<script setup>
+
+const fileDialog = ref(null)
+const scanResult = ref(null)
+
+function openFileDialog() {
+  fileDialog.value.openDialog()
+}
+
+async function handleScannedFile(formData) {
+  try {
+    scanResult.value = await $fetch('/backend/process_file', {
+      method: 'POST',
+      body: formData
+    })
+
+    const tracking_id = scanResult.value.tracking_id
+    
+    // Process the scan result (e.g., update UI, etc.)
+  } catch (error) {
+    console.error('Error scanning file:', error)
+    // Handle error (e.g., show error message to user)
+  } 
+}
+
 </script>
