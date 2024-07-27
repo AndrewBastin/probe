@@ -6,7 +6,10 @@
 
 <style>
 body {
-  font-family: "Rubik";
-  @apply bg-orange-50;
+  font-family: "Poppins";
+  @apply bg-[#160D22];
+  @apply text-zinc-300;
+  background-image: url('bg-noise.png');
+
 }
 </style>
