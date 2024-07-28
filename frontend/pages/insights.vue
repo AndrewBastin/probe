@@ -88,7 +88,7 @@
                         </div>
                         <div v-if="getDependencyData(dep.name).length > 0"
                             class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
-                            <h3 class="font-semibold text-sm text-violet-300 mb-2">Dependency Info</h3>
+                            <h3 class="font-semibold text-sm text-violet-300 mb-2">Dependency Information</h3>
                             <ul class="list-square marker:text-violet-300 list-outside ml-4">
                                 <li v-for="data in getDependencyData(dep.name).dependencies" :key="data" class="mb-2">
                                     <div class="inline-flex items-center">
@@ -115,8 +115,6 @@
                                                 <Icon name="mdi:arrow-top-right" class="ml-1 w-4 h-4" />
                                             </NuxtLink>
                                             <div v-if="Object.keys(info.aiData).length > 0" class="mt-3 space-y-2">
-                                                <h4 class="text-sm font-semibold text-violet-300 mb-2">Funding
-                                                    Insights</h4>
                                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                     <div v-if="info.aiData.monthly_raised_amount"
                                                         class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center">
@@ -159,9 +157,9 @@
                                                     </div>
                                                 </div>
                                                 <div v-if="info.aiData.is_funding !== undefined"
-                                                    class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center mt-2">
+                                                    class="bg-gray-800 bg-opacity-50 px-3 py-5 rounded-lg flex items-center mt-2 md:w-1/2">
                                                     <Icon
-                                                        :name="info.aiData.is_funding ? 'mdi:hand-coin' : 'mdi:hand-coin-off'"
+                                                        name="mdi:hand-coin"
                                                         :class="info.aiData.is_funding ? 'text-green-400' : 'text-red-400'"
                                                         class="mr-2 w-5 h-5" />
                                                     <p class="text-sm text-violet-100">
