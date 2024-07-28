@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actors::github_actor::GithubActor;
+use actors::{ai_actor::AIActor, github_actor::GithubActor};
 use controllers::AppState;
 use rocket::fairing::AdHoc;
 use rocket_db_pools::Database;
@@ -36,6 +36,14 @@ async fn main() {
                 GithubActor::new(
                     std::env::var("GITHUB_TOKEN")
                         .expect("GITHUB_TOKEN not found")
+                )
+            ),
+            ai_actor: Arc::new(
+                AIActor::new(
+                    std::env::var("TOGETHER_AI_API_KEY")
+                        .expect("TOGETHER_AI_API_KEY not found"),
+                    std::env::var("JINA_READER_API_KEY")
+                        .expect("JINA_READER_API_KEY not found")
                 )
             )
         })

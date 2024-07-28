@@ -3,7 +3,7 @@ use tokio::sync::{RwLock, Semaphore};
 use futures::future::join_all;
 use crate::actors::npm_actor::PackageInfo;
 
-use super::{github_actor::{GithubActor, GithubInfo}, npm_actor::NPMActor};
+use super::{ai_actor::{AIActor, ParsedFundingInfo}, github_actor::{GithubActor, GithubInfo}, npm_actor::NPMActor};
 
 #[derive(Clone)]
 pub enum DepScannerStatus {
@@ -12,6 +12,7 @@ pub enum DepScannerStatus {
         dep_objects: HashMap<(String, String), PackageInfo>,
         deps_on_graph: HashMap<Option<(String, String)>, Vec<(String, String)>>,
         github_info_map: HashMap<(String, String), GithubInfo>,
+        funding_info_map: HashMap<String, Option<ParsedFundingInfo>>,
     },
 }
 
@@ -144,7 +145,8 @@ impl DepScannerActor {
         id: String,
         package_json: &serde_json::Value,
         npm_actor: Arc<NPMActor>,
-        github_actor: Arc<GithubActor>
+        github_actor: Arc<GithubActor>,
+        ai_actor: Arc<AIActor>
     ) -> Arc<DepScannerActor> {
         let state = Arc::new(
             DepScannerActor {
@@ -190,10 +192,30 @@ impl DepScannerActor {
                 github_info_map.insert(key.clone(), github_info);
             }
 
+            let mut funding_info_map: HashMap<String, Option<ParsedFundingInfo>> = HashMap::new();
+
+            for gh_info in github_info_map.values() {
+                if let Some(info) = &gh_info.funding {
+                    for domain_urls in info.to_url_map().values() {
+                        for url in domain_urls {
+                            if let Some(summary) = ai_actor.summarize_page(url).await {
+                                let data = ai_actor.get_funding_stats_from_page_summary(url, &summary).await.ok();
+
+                                funding_info_map.insert(url.clone(), data);
+                            } else {
+                                funding_info_map.insert(url.clone(), None);
+                            }
+                        }
+                    }
+
+                }
+            }
+
             *moved_state.status.write().await = DepScannerStatus::Done {
                 dep_objects,
                 deps_on_graph,
                 github_info_map,
+                funding_info_map
             };
         });
 

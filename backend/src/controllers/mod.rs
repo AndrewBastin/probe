@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 use rocket::{form::Form, http::Status, serde::json::Json, Route, State};
 use uuid::Uuid;
 
-use crate::{actors::{dep_scanner::{DepScannerActor, DepScannerStatus}, github_actor::{FundingYMLContent, GithubActor}, npm_actor::NPMActor}, utils::JsonValue};
+use crate::{actors::{ai_actor::{AIActor, ParsedFundingInfo}, dep_scanner::{DepScannerActor, DepScannerStatus}, github_actor::{FundingYMLContent, GithubActor}, npm_actor::NPMActor}, utils::JsonValue};
 
 #[get("/")]
 fn index() -> &'static str {
@@ -18,7 +18,8 @@ fn index() -> &'static str {
 pub struct AppState {
     pub jobs: Arc<RwLock<HashMap<String, Arc<DepScannerActor>>>>,
     pub npm_actor: Arc<NPMActor>,
-    pub github_actor: Arc<GithubActor>
+    pub github_actor: Arc<GithubActor>,
+    pub ai_actor: Arc<AIActor>
 }
 
 #[derive(FromForm)]
@@ -35,7 +36,7 @@ struct ProcessFileOutput {
 async fn process_file(input: Form<ProcessFileInput>, state: &State<AppState>) -> Json<ProcessFileOutput> {
     let id = Uuid::new_v4().to_string();
 
-    let actor = DepScannerActor::start(id.clone(), &input.file.0, state.npm_actor.clone(), state.github_actor.clone());
+    let actor = DepScannerActor::start(id.clone(), &input.file.0, state.npm_actor.clone(), state.github_actor.clone(), state.ai_actor.clone());
 
     let mut jobs = state.jobs.write().await;
     jobs.insert(id.clone(), actor);
@@ -56,7 +57,7 @@ async fn get_status(id: String, state: &State<AppState>) -> Result<Json<GetStatu
 
     match job.get_status().await {
         DepScannerStatus::Processing => Ok(Json(GetStatusResult { loading: true })),
-        DepScannerStatus::Done { dep_objects: _, deps_on_graph: _, github_info_map: _ } => 
+        DepScannerStatus::Done { dep_objects: _, deps_on_graph: _, github_info_map: _, funding_info_map: _ } => 
             Ok(Json(GetStatusResult { loading: false })),
     }
 }
@@ -89,7 +90,8 @@ struct Dependency {
 struct GetResultResultV2 {
     objects: Vec<Dependency>,
     root_objects: Vec<String>,
-    depends_on: HashMap<String, Vec<String>>
+    depends_on: HashMap<String, Vec<String>>,
+    ai_funding_info: HashMap<String, Option<ParsedFundingInfo>>
 }
 
 #[get("/result?<id>")]
@@ -99,7 +101,7 @@ async fn get_result(id: String, state: &State<AppState>) -> Result<Json<GetResul
     let job = if let Some(job) = jobs.get(&id) { job } else { return Err(Status::NotFound) };
 
     match job.get_status().await {
-        DepScannerStatus::Done { dep_objects, deps_on_graph, github_info_map } => {
+        DepScannerStatus::Done { dep_objects, deps_on_graph, github_info_map, funding_info_map } => {
             let objects: Vec<Dependency> = dep_objects
                 .iter()
                 .map(|(key, pkg)| {
@@ -162,7 +164,8 @@ async fn get_result(id: String, state: &State<AppState>) -> Result<Json<GetResul
             Ok(Json(GetResultResultV2 { 
                 objects,
                 root_objects,
-                depends_on
+                depends_on,
+                ai_funding_info: funding_info_map
             }))
         },
         DepScannerStatus::Processing => Err(Status::BadRequest)
