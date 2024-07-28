@@ -8,7 +8,7 @@
           <span class="text-[#8900CA]">dependecies.</span>
         </h1>
       </div>
-      <p class="text-center md:text-xl lg:text-2xl lg:text-left">
+      <p class="text-center md:text-lg lg:text-xl lg:text-left">
         For enthusiasts to contribute <br />
         effectively to the open-source ecosystem.</p>
       <p class="text-lg"></p>
