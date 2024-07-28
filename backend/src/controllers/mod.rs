@@ -1,31 +1,30 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
+use chrono::Utc;
 use serde::Serialize;
 use tokio::sync::RwLock;
 
 use lazy_static::lazy_static;
-use rocket::{form::Form, fs::TempFile, http::Status, serde::json::Json, Route, State};
+use rocket::{form::Form, http::Status, serde::json::Json, Route, State};
 use uuid::Uuid;
+
+use crate::{actors::{dep_scanner::{DepScannerActor, DepScannerStatus}, github_actor::GithubActor, npm_actor::NPMActor}, utils::JsonValue};
 
 #[get("/")]
 fn index() -> &'static str {
     "Hello Everynyan!"
 }
 
-#[derive(Debug)]
-enum ProcessState {
-    Processing,
-    Done // TODO: Data
-}
-
 #[derive(Default)]
-pub struct DummyRoutesState {
-    issued_ids: Arc<RwLock<HashMap<String, ProcessState>>>
+pub struct AppState {
+    jobs: Arc<RwLock<HashMap<String, Arc<DepScannerActor>>>>,
+    npm_actor: Arc<NPMActor>,
+    github_actor: Arc<GithubActor>
 }
 
 #[derive(FromForm)]
-struct ProcessFileInput<'r> {
-    file: TempFile<'r>
+struct ProcessFileInput {
+    file: JsonValue
 }
 
 #[derive(Serialize)]
@@ -34,27 +33,13 @@ struct ProcessFileOutput {
 }
 
 #[post("/process_file", data = "<input>")]
-async fn process_file(input: Form<ProcessFileInput<'_>>, state: &State<DummyRoutesState>) -> Json<ProcessFileOutput> {
-    let mut issued_ids = state.issued_ids.write().await;
+async fn process_file(input: Form<ProcessFileInput>, state: &State<AppState>) -> Json<ProcessFileOutput> {
+    let id = Uuid::new_v4().to_string();
 
-    let id = Arc::new(Uuid::new_v4().to_string());
+    let actor = DepScannerActor::start(id.clone(), &input.file.0, state.npm_actor.clone(), state.github_actor.clone());
 
-    issued_ids.insert(id.to_string(), ProcessState::Processing);
-
-    drop(issued_ids);
-
-    let moved_id = id.clone();
-    let moved_issued_ids = state.issued_ids.clone();
-
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(10)).await;
-
-        let mut running_processes = moved_issued_ids.write().await;
-
-        *running_processes.get_mut(&*moved_id).unwrap() = ProcessState::Done;
-
-    });
-
+    let mut jobs = state.jobs.write().await;
+    jobs.insert(id.clone(), actor);
 
     Json(ProcessFileOutput { tracking_id: id.to_string() })
 }
@@ -65,16 +50,15 @@ struct GetStatusResult {
 }
 
 #[get("/status?<id>")]
-async fn get_status(id: String, state: &State<DummyRoutesState>) -> Result<Json<GetStatusResult>, Status> {
-    let issued_ids = state.issued_ids.read().await;
+async fn get_status(id: String, state: &State<AppState>) -> Result<Json<GetStatusResult>, Status> {
+    let jobs = state.jobs.read().await;
 
-    dbg!(id.clone());
-    println!("{:?}", issued_ids);
+    let job = if let Some(job) = jobs.get(&id) { job } else { return Err(Status::NotFound) };
 
-    match issued_ids.get(&id) {
-        Some(ProcessState::Done) => Ok(Json(GetStatusResult { loading: false })),
-        Some(_) => Ok(Json(GetStatusResult { loading: true })),
-        None => Err(Status::NotFound),
+    match job.get_status().await {
+        DepScannerStatus::Processing => Ok(Json(GetStatusResult { loading: true })),
+        DepScannerStatus::Done { dep_objects: _, deps_on_graph: _, github_info_map: _ } => 
+            Ok(Json(GetStatusResult { loading: false })),
     }
 }
 
@@ -83,14 +67,111 @@ struct GetResultResult {
     id: String
 }
 
-#[get("/result?<id>")]
-async fn get_result(id: String, state: &State<DummyRoutesState>) -> Result<Json<GetResultResult>, Status> {
-    let issued_ids = state.issued_ids.read().await;
+#[derive(Serialize)]
+struct GithubFundingInfo {
+    // TODO: Define
+}
 
-    match issued_ids.get(&id) {
-        Some(ProcessState::Done) => Ok(Json(GetResultResult { id: id.clone() })),
-        Some(_) => Err(Status::BadRequest),
-        None => Err(Status::NotFound),
+#[derive(Serialize)]
+struct GithubInfo {
+    repo_url: String,
+    repo_desc: String,
+    no_of_contributors: usize,
+    total_issues: usize,
+    open_issues: usize,
+    avg_issue_closing_time_mins: f64,
+    last_commit_at: chrono::DateTime<Utc>,
+    funding: Option<GithubFundingInfo>
+}
+
+#[derive(Serialize)]
+struct Dependency {
+    name: String,
+    license: Option<String>,
+    github: Option<GithubInfo>,
+}
+
+#[derive(Serialize)]
+struct GetResultResultV2 {
+    objects: Vec<Dependency>,
+    root_objects: Vec<String>,
+    depends_on: HashMap<String, Vec<String>>
+}
+
+#[get("/result?<id>")]
+async fn get_result(id: String, state: &State<AppState>) -> Result<Json<GetResultResultV2>, Status> {
+    let jobs = state.jobs.read().await;
+
+    let job = if let Some(job) = jobs.get(&id) { job } else { return Err(Status::NotFound) };
+
+    match job.get_status().await {
+        DepScannerStatus::Done { dep_objects, deps_on_graph, github_info_map } => {
+            let objects: Vec<Dependency> = dep_objects
+                .iter()
+                .map(|(key, pkg)| {
+                    let github_info = if let Some(repo_url) = pkg.repository.as_ref().and_then(|repo| {
+                        if repo.repo_type == "git" {
+                            Some(&repo.url)
+                        } else {
+                            None
+                        }
+                    }) {
+                        github_info_map.get(key).cloned()
+                    } else {
+                        None
+                    };
+
+                    Dependency {
+                        name: format!("{}@{}", key.0, key.1),
+                        license: pkg.license.clone(),
+                        github: github_info 
+                            .map(|info| {
+                                GithubInfo {
+                                    repo_url: info.repo_url,
+                                    repo_desc: info.repo_desc,
+                                    open_issues: info.open_issues,
+                                    total_issues: info.total_issues,
+                                    last_commit_at: info.last_commit_at,
+                                    no_of_contributors: info.no_of_contributors,
+                                    avg_issue_closing_time_mins: info.avg_issue_closing_time_mins,
+                                    funding: None
+                                }
+                            })
+                    }
+                }).collect();
+
+            let root_objects = deps_on_graph
+                .get(&None)
+                .map(|deps| {
+                    deps
+                        .iter()
+                        .map(|(name, version)| format!("{}@{}", name, version))
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
+
+            let depends_on: HashMap<String, Vec<String>> = deps_on_graph
+                .iter()
+                .filter_map(|(key, deps)| {
+                    if let Some(key) = key {
+                        let entries = deps.iter().map(|(name, version)|
+                            format!("{}@{}", name, version)
+                        ).collect::<Vec<String>>();
+
+                        Some((format!("{}@{}", key.0, key.1), entries))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            Ok(Json(GetResultResultV2 { 
+                objects,
+                root_objects,
+                depends_on
+            }))
+        },
+        DepScannerStatus::Processing => Err(Status::BadRequest)
     }
 }
 

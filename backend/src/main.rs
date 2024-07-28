@@ -1,21 +1,18 @@
-use controllers::DummyRoutesState;
+use controllers::AppState;
 use rocket::fairing::AdHoc;
 use rocket_db_pools::Database;
 use models::DB;
 
 #[macro_use] extern crate rocket;
 
+mod actors;
 mod models;
 mod controllers;
+mod utils;
 
-#[get("/")]
-fn index() -> &'static str {
-    "Hello Everynyan!"
-}
-
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
+#[rocket::main]
+async fn main() {
+    let _ = rocket::build()
         .attach(DB::init())
         .attach(
             AdHoc::on_ignite("DB Migrator", |rocket| Box::pin(async move {
@@ -29,6 +26,8 @@ fn rocket() -> _ {
                 rocket
             }))
         )
-        .manage(DummyRoutesState::default())
+        .manage(AppState::default())
         .mount("/", controllers::routes.clone())
+        .launch()
+        .await;
 }
