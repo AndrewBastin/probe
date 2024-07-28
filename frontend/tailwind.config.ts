@@ -6,6 +6,9 @@ export default <Partial<Config>>{
     extend: {
       lineHeight: {
         '12': '4rem',
+      },
+      listStyleType: {
+        'square': 'square',
       }
     }
   }
