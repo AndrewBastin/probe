@@ -4,8 +4,8 @@
     <div v-else-if="scanResult" class="container mx-auto p-4">
         <h1 class="text-3xl font-bold mb-6 text-violet-300">Scan Results</h1>
 
-        <!-- Search and Filter Panel -->
-        <div class="mb-6 p-4 bg-gray-800 rounded-lg">
+        <!-- Search, Filter, and Sort Panel -->
+        <div class="flex flex-col mb-6 p-4 bg-gray-800 rounded-lg gap-4">
             <div class="flex flex-wrap items-center gap-4">
                 <div class="flex-grow">
                     <input v-model="searchQuery" type="text" placeholder="Search dependencies..."
@@ -22,10 +22,31 @@
                     </label>
                 </div>
             </div>
+            <div class="flex items-center">
+                <div class="relative inline-flex">
+                    <select v-model="sortBy"
+                        class="appearance-none bg-gray-700 text-violet-200 pl-3 pr-10 py-2 rounded-l-md border-r border-gray-600">
+                        <option value="">Sort by</option>
+                        <option value="contributors">Contributors</option>
+                        <option value="openIssues">Open Issues</option>
+                        <option value="dependencies">Dependencies</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-violet-200">
+                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                        </svg>
+                    </div>
+                </div>
+                <button @click="toggleSortOrder"
+                    class="bg-gray-700 text-violet-200 px-3 py-2 rounded-r-md">
+                    <span v-if="sortOrder === 'asc'" class="block transform rotate-180">▼</span>
+                    <span v-else>▼</span>
+                </button>
+            </div>
         </div>
 
         <div class="border border-violet-600 rounded-lg overflow-hidden shadow-lg bg-gray-800 bg-opacity-50">
-            <div v-for="(dep, _index) in filteredDependencies" :key="dep.name"
+            <div v-for="(dep, _index) in sortedAndFilteredDependencies" :key="dep.name"
                 class="border-b border-violet-600 last:border-b-0">
                 <div @click="toggleExpand(dep.name)"
                     class="flex text-violet-200 font-semibold justify-between bg-gray-800 bg-opacity-70 items-center p-5 cursor-pointer hover:bg-gray-700 transition-colors duration-200 ease-in-out shadow-sm">
@@ -52,9 +73,9 @@
                             {{ dep.github?.repo_desc || 'No description available' }}
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-3">
+                        <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
                             <div class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
-                                <h3 class="font-semibold text-sm text-violet-300 mb-2">Number of contributors</h3>
+                                <h3 class="font-semibold text-sm text-violet-300 mb-2">Contributors</h3>
                                 {{ dep.github?.no_of_contributors || 0 }}
                             </div>
                             <div class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
@@ -62,13 +83,13 @@
                                 {{ dep.github?.open_issues || 0 }}
                             </div>
                             <div class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
-                                <h3 class="font-semibold text-sm text-violet-300 mb-2">Number of dependencies</h3>
+                                <h3 class="font-semibold text-sm text-violet-300 mb-2">Dependencies</h3>
                                 {{ getDependencyData(dep.name).length }}
                             </div>
                         </div>
                         <div v-if="getDependencyData(dep.name).length > 0"
                             class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
-                            <h3 class="font-semibold text-sm text-violet-300 mb-2">Dependencies</h3>
+                            <h3 class="font-semibold text-sm text-violet-300 mb-2">Dependency Info</h3>
                             <ul class="list-square marker:text-violet-300 list-outside ml-4">
                                 <li v-for="data in getDependencyData(dep.name).dependencies" :key="data" class="mb-2">
                                     <div class="inline-flex items-center">
@@ -116,10 +137,12 @@ const isLoading = ref(true)
 const scanResult = ref(null)
 const expandedDeps = ref([])
 
-// refs for search and filter
+// refs for search, filter and sort
 const searchQuery = ref('')
 const showWithFundingInfoOnly = ref(false)
 const showGitHubOnly = ref(false)
+const sortBy = ref('')
+const sortOrder = ref('asc')
 
 async function pollForResult(trackingId, maxAttempts = 30, interval = 5000) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -163,6 +186,43 @@ const filteredDependencies = computed(() => {
         return nameMatch && fundingMatch && githubMatch
     })
 })
+
+const sortedAndFilteredDependencies = computed(() => {
+    let deps = [...filteredDependencies.value]
+
+    if (sortBy.value) {
+        deps.sort((a, b) => {
+            let aValue, bValue;
+            switch (sortBy.value) {
+                case 'contributors':
+                    aValue = a.github?.no_of_contributors || 0
+                    bValue = b.github?.no_of_contributors || 0
+                    break
+                case 'openIssues':
+                    aValue = a.github?.open_issues || 0
+                    bValue = b.github?.open_issues || 0
+                    break
+                case 'dependencies':
+                    aValue = getDependencyData(a.name).length
+                    bValue = getDependencyData(b.name).length
+                    break
+                default:
+                    return 0
+            }
+
+            if (sortOrder.value === 'asc') {
+                return aValue - bValue
+            } else {
+                return bValue - aValue
+            }
+        })
+    }
+    return deps
+})
+
+function toggleSortOrder() {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+}
 function toggleExpand(depName) {
     const index = expandedDeps.value.indexOf(depName)
     if (index > -1) {
