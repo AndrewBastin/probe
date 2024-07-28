@@ -184,8 +184,8 @@ impl GithubActor {
             .await?;
 
         let headers = response.headers();
-        let total_contributors = parse_link_header(headers.get("link").unwrap().to_str().unwrap())
-                .unwrap_or(0);
+        let total_contributors = parse_link_header(headers.get("link").map(|x| x.to_str().unwrap()).unwrap_or(""))
+                .unwrap_or(1); // If link is not there, we can assume this is the only page
 
         dbg!(&total_contributors);
 
