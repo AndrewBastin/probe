@@ -1,0 +1,28 @@
+app = 'fosshack'
+primary_region = 'nrt'
+
+[build]
+  dockerfile = './Dockerfile'
+  build-target = 'aio'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[mounts]
+source = "db"
+destination = "/db"
+
+[env] 
+ROCKET_DATABASES = "{ db = { url = \"/db/db.sqlite\" } }"
+NODE_ENV = "production"
+NUXT_PUBLIC_BACKEND_URL = "https://fosshack.fly.dev/backend"

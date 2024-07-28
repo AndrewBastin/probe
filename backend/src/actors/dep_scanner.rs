@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, VecDeque}, sync::Arc};
 use tokio::sync::{RwLock, Semaphore};
-use futures::future::join_all;
+use futures::{future::join_all, stream::iter, StreamExt};
 use crate::actors::npm_actor::PackageInfo;
 
 use super::{ai_actor::{AIActor, ParsedFundingInfo}, github_actor::{GithubActor, GithubInfo}, npm_actor::NPMActor};
@@ -181,35 +181,76 @@ impl DepScannerActor {
                 })
                 .collect::<HashMap<(String, String), String>>();
 
-            // Here you would typically send the results (dep_objects and deps_on_graph) 
-            // to some storage or processing system
+            // let mut github_info_map = HashMap::new();
+            //
+            // for (key, repo_url) in repo_urls.iter() {
+            //     let github_info = github_actor.get_github_info(&repo_url).await.unwrap();
+            //
+            //     github_info_map.insert(key.clone(), github_info);
+            // }
+            //
+            // let mut funding_info_map: HashMap<String, Option<ParsedFundingInfo>> = HashMap::new();
+            //
+            // for gh_info in github_info_map.values() {
+            //     if let Some(info) = &gh_info.funding {
+            //         for domain_urls in info.to_url_map().values() {
+            //             for url in domain_urls {
+            //                 if let Some(summary) = ai_actor.summarize_page(url).await {
+            //                     let data = ai_actor.get_funding_stats_from_page_summary(url, &summary).await.ok();
+            //
+            //                     funding_info_map.insert(url.clone(), data);
+            //                 } else {
+            //                     funding_info_map.insert(url.clone(), None);
+            //                 }
+            //             }
+            //         }
+            //
+            //     }
+            // }
 
-            let mut github_info_map = HashMap::new();
+
+            let mut github_info_futures = Vec::new();
 
             for (key, repo_url) in repo_urls.iter() {
-                let github_info = github_actor.get_github_info(&repo_url).await.unwrap();
-
-                github_info_map.insert(key.clone(), github_info);
+                let github_actor = github_actor.clone();
+                let key = key.clone();
+                let repo_url = repo_url.clone();
+                github_info_futures.push(async move {
+                    let github_info = github_actor.get_github_info(&repo_url).await.unwrap();
+                    (key, github_info)
+                });
             }
 
-            let mut funding_info_map: HashMap<String, Option<ParsedFundingInfo>> = HashMap::new();
+            let github_info_map: HashMap<_, _> = iter(github_info_futures)
+                .buffer_unordered(5)
+                .collect()
+            .await;
+
+            let mut funding_info_futures = Vec::new();
 
             for gh_info in github_info_map.values() {
                 if let Some(info) = &gh_info.funding {
                     for domain_urls in info.to_url_map().values() {
                         for url in domain_urls {
-                            if let Some(summary) = ai_actor.summarize_page(url).await {
-                                let data = ai_actor.get_funding_stats_from_page_summary(url, &summary).await.ok();
-
-                                funding_info_map.insert(url.clone(), data);
-                            } else {
-                                funding_info_map.insert(url.clone(), None);
-                            }
+                            let ai_actor = ai_actor.clone();
+                            let url = url.clone();
+                            funding_info_futures.push(async move {
+                                if let Some(summary) = ai_actor.summarize_page(&url).await {
+                                    let data = ai_actor.get_funding_stats_from_page_summary(&url, &summary).await.ok();
+                                    (url, data)
+                                } else {
+                                    (url, None)
+                                }
+                            });
                         }
                     }
-
                 }
             }
+
+            let funding_info_map: HashMap<_, _> = iter(funding_info_futures)
+                .buffer_unordered(5)
+                .collect()
+            .await;
 
             *moved_state.status.write().await = DepScannerStatus::Done {
                 dep_objects,
