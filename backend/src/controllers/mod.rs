@@ -8,18 +8,17 @@ use lazy_static::lazy_static;
 use rocket::{form::Form, http::Status, serde::json::Json, Route, State};
 use uuid::Uuid;
 
-use crate::{actors::{dep_scanner::{DepScannerActor, DepScannerStatus}, github_actor::GithubActor, npm_actor::NPMActor}, utils::JsonValue};
+use crate::{actors::{dep_scanner::{DepScannerActor, DepScannerStatus}, github_actor::{FundingYMLContent, GithubActor}, npm_actor::NPMActor}, utils::JsonValue};
 
 #[get("/")]
 fn index() -> &'static str {
     "Hello Everynyan!"
 }
 
-#[derive(Default)]
 pub struct AppState {
-    jobs: Arc<RwLock<HashMap<String, Arc<DepScannerActor>>>>,
-    npm_actor: Arc<NPMActor>,
-    github_actor: Arc<GithubActor>
+    pub jobs: Arc<RwLock<HashMap<String, Arc<DepScannerActor>>>>,
+    pub npm_actor: Arc<NPMActor>,
+    pub github_actor: Arc<GithubActor>
 }
 
 #[derive(FromForm)]
@@ -63,13 +62,8 @@ async fn get_status(id: String, state: &State<AppState>) -> Result<Json<GetStatu
 }
 
 #[derive(Serialize)]
-struct GetResultResult {
-    id: String
-}
-
-#[derive(Serialize)]
 struct GithubFundingInfo {
-    // TODO: Define
+    links: HashMap<String, Vec<String>>
 }
 
 #[derive(Serialize)]
@@ -134,7 +128,7 @@ async fn get_result(id: String, state: &State<AppState>) -> Result<Json<GetResul
                                     last_commit_at: info.last_commit_at,
                                     no_of_contributors: info.no_of_contributors,
                                     avg_issue_closing_time_mins: info.avg_issue_closing_time_mins,
-                                    funding: None
+                                    funding: info.funding.map(|f| GithubFundingInfo { links: f.to_url_map() })
                                 }
                             })
                     }

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use actors::github_actor::GithubActor;
 use controllers::AppState;
 use rocket::fairing::AdHoc;
 use rocket_db_pools::Database;
@@ -26,7 +29,16 @@ async fn main() {
                 rocket
             }))
         )
-        .manage(AppState::default())
+        .manage(AppState {
+            jobs: Default::default(),
+            npm_actor: Default::default(),
+            github_actor: Arc::new(
+                GithubActor::new(
+                    std::env::var("GITHUB_TOKEN")
+                        .expect("GITHUB_TOKEN not found")
+                )
+            )
+        })
         .mount("/", controllers::routes.clone())
         .launch()
         .await;
