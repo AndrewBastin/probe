@@ -37,8 +37,7 @@
                         </svg>
                     </div>
                 </div>
-                <button @click="toggleSortOrder"
-                    class="bg-gray-700 text-violet-200 px-3 py-2 rounded-r-md">
+                <button @click="toggleSortOrder" class="bg-gray-700 text-violet-200 px-3 py-2 rounded-r-md">
                     <span v-if="sortOrder === 'asc'" class="block transform rotate-180">▼</span>
                     <span v-else>▼</span>
                 </button>
@@ -106,16 +105,70 @@
                         </div>
                         <div class="bg-gray-700 bg-opacity-50 p-4 rounded-lg shadow-inner">
                             <h3 class="font-semibold text-sm text-violet-300 mb-2">Funding Information</h3>
-                            <div v-if="getFundingInfo(dep.name)">
+                            <div v-if="getFundingInfo(dep.name).length > 0">
                                 <ul class="list-square marker:text-violet-300 list-outside ml-4">
-                                    <li v-for="(links, platform) in getFundingInfo(dep.name)" :key="platform"
-                                        class="mb-2">
-                                        <div class="inline-flex items-center">
-                                            <NuxtLink :to="links[0]" target="_blank" rel="noopener noreferrer"
-                                                class="hover:text-violet-300 transition-colors duration-200 flex items-center">
-                                                {{ formatPlatformName(platform) }}
+                                    <li v-for="info in getFundingInfo(dep.name)" :key="info.url" class="mb-4">
+                                        <div class="flex flex-col">
+                                            <NuxtLink :to="info.url" target="_blank" rel="noopener noreferrer"
+                                                class="hover:text-violet-300 transition-colors duration-200 flex items-center mb-2">
+                                                {{ formatPlatformName(info.platform) }}
                                                 <Icon name="mdi:arrow-top-right" class="ml-1 w-4 h-4" />
                                             </NuxtLink>
+                                            <div v-if="Object.keys(info.aiData).length > 0" class="mt-3 space-y-2">
+                                                <h4 class="text-sm font-semibold text-violet-300 mb-2">Funding
+                                                    Insights</h4>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    <div v-if="info.aiData.monthly_raised_amount"
+                                                        class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center">
+                                                        <Icon name="mdi:cash-multiple"
+                                                            class="text-green-400 mr-2 w-5 h-5" />
+                                                        <div>
+                                                            <p class="text-xs text-violet-300">Monthly raised</p>
+                                                            <p class="text-sm font-semibold text-violet-100">{{
+                                                                info.aiData.monthly_raised_amount }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="info.aiData.target_monthly_raised_amount"
+                                                        class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center">
+                                                        <Icon name="mdi:target" class="text-blue-400 mr-2 w-5 h-5" />
+                                                        <div>
+                                                            <p class="text-xs text-violet-300">Monthly target</p>
+                                                            <p class="text-sm font-semibold text-violet-100">{{
+                                                                info.aiData.target_monthly_raised_amount }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="info.aiData.total_raised_amount"
+                                                        class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center">
+                                                        <Icon name="mdi:piggy-bank"
+                                                            class="text-yellow-400 mr-2 w-5 h-5" />
+                                                        <div>
+                                                            <p class="text-xs text-violet-300">Total raised</p>
+                                                            <p class="text-sm font-semibold text-violet-100">{{
+                                                                info.aiData.total_raised_amount }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="info.aiData.target_raised_amount"
+                                                        class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center">
+                                                        <Icon name="mdi:flag-checkered"
+                                                            class="text-red-400 mr-2 w-5 h-5" />
+                                                        <div>
+                                                            <p class="text-xs text-violet-300">Total target</p>
+                                                            <p class="text-sm font-semibold text-violet-100">{{
+                                                                info.aiData.target_raised_amount }}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div v-if="info.aiData.is_funding !== undefined"
+                                                    class="bg-gray-800 bg-opacity-50 p-3 rounded-lg flex items-center mt-2">
+                                                    <Icon
+                                                        :name="info.aiData.is_funding ? 'mdi:hand-coin' : 'mdi:hand-coin-off'"
+                                                        :class="info.aiData.is_funding ? 'text-green-400' : 'text-red-400'"
+                                                        class="mr-2 w-5 h-5" />
+                                                    <p class="text-sm text-violet-100">
+                                                        {{ info.aiData.is_funding ? `Accepts monetary funding via ${formatPlatformName(info.platform)} ` : `Does not accept monetary funding via ${formatPlatformName(info.platform)}` }}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </li>
                                 </ul>
@@ -255,7 +308,6 @@ function getDependencyData(depName) {
 }
 
 function cleanDependencyName(dependency) {
-    // Split the string at the last '@'
     const lastAtIndex = dependency.lastIndexOf('@');
 
     if (lastAtIndex <= 0) {
@@ -270,8 +322,20 @@ function getGitHubURL(dependency) {
 
 function getFundingInfo(dependency) {
     const fundingInfo = scanResult.value.objects.find(dep => dep.name === dependency)?.github?.funding;
-    return fundingInfo?.links || null;
+    const links = fundingInfo?.links || {};
+    const aiInfo = scanResult.value.ai_funding_info || {};
+
+    return Object.entries(links).map(([platform, urls]) => {
+        const url = urls[0];
+        const aiData = aiInfo[url] || {};
+        return {
+            platform,
+            url,
+            aiData
+        };
+    });
 }
+
 
 function formatPlatformName(platform) {
     if (platform === 'github') return 'GitHub Sponsors';
