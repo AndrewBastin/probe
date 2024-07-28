@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use futures::future;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,7 +16,7 @@ pub struct GithubInfo {
     pub repo_url: String,
     pub repo_desc: String,
     pub license_key: Option<String>,
-    pub no_of_contributors: usize,
+    pub no_of_contributors: u32,
     pub total_issues: usize,
     pub open_issues: usize,
     pub avg_issue_closing_time_mins: f64,
@@ -116,12 +117,42 @@ impl FundingYMLContent {
     }
 }
 
+fn parse_link_header(link: &str) -> Option<u32> {
+    let re = Regex::new(r#"<[^>]*?page=(\d+)>;\s*rel="last""#).unwrap();
+    
+    re.captures(link)
+        .and_then(|cap| cap.get(1))
+        .and_then(|m| m.as_str().parse().ok())
+}
+
 impl GithubActor {
     pub fn new(github_api_token: String) -> Self {
         Self {
             client: Client::new(),
             github_api_token
         }
+    }
+
+    async fn get_total_issues_for_repo(&self, repo: &str) -> Option<usize> {
+        println!("Getting total issues for: {}", repo);
+        let url = format!("https://api.github.com/search/issues");
+
+        let response = self.client
+            .get(&url)
+            .header("Authorization", format!("token {}", self.github_api_token))
+            .header("User-Agent", "rust-github-api")
+            .query(&[
+                ("q", format!("repo:{} is:issue", repo)),
+                ("per_page", "1".to_string()),
+            ])
+            .send()
+            .await
+            .ok()?;
+
+        let body: Value = response.json().await.ok()?;
+        let total_issues = body["total_count"].as_u64().unwrap_or(0);
+
+        Some(total_issues as usize)
     }
 
     pub async fn get_github_info(&self, repo: &str) -> Result<GithubInfo, Box<dyn Error>> {
@@ -142,19 +173,21 @@ impl GithubActor {
         println!("Repo Info");
 
         // Get contributors count
-        let contributors_url = format!("https://ungh.cc/repos/{}/contributors", repo);
-        let contributors: Vec<Value> = self.client.get(&contributors_url)
+        let contributors_url = format!("{}/repos/{}/contributors?per_page=1&anon=true", base_url, repo);
+
+        let response = self.client
+            .get(&contributors_url)
+            .header("Authorization", format!("token {}", self.github_api_token))
             .header("User-Agent", "probe")
+            .query(&[("per_page", "1"), ("anon", "true")])
             .send()
-            .await?
-            .json::<serde_json::Value>()
-            .await?
-            .as_object()
-            .unwrap()
-            ["contributors"]
-            .as_array()
-            .unwrap()
-            .to_owned();
+            .await?;
+
+        let headers = response.headers();
+        let total_contributors = parse_link_header(headers.get("link").unwrap().to_str().unwrap())
+                .unwrap_or(0);
+
+        dbg!(&total_contributors);
 
         println!("Contributors Info");
 
@@ -204,8 +237,8 @@ impl GithubActor {
             repo_url: repo_info["html_url"].as_str().unwrap().to_string(),
             repo_desc: repo_info["description"].as_str().unwrap_or("").to_string(),
             license_key: repo_info["license"]["key"].as_str().map(|s| s.to_string()),
-            no_of_contributors: contributors.len(),
-            total_issues: closed_issues.len(),
+            no_of_contributors: total_contributors,
+            total_issues: self.get_total_issues_for_repo(repo).await.unwrap(),
             open_issues: repo_info["open_issues_count"].as_u64().unwrap() as usize,
             avg_issue_closing_time_mins: avg_closing_time,
             last_commit_at: last_commit_at.with_timezone(&Utc),

@@ -70,7 +70,7 @@ struct GithubFundingInfo {
 struct GithubInfo {
     repo_url: String,
     repo_desc: String,
-    no_of_contributors: usize,
+    no_of_contributors: u32,
     total_issues: usize,
     open_issues: usize,
     avg_issue_closing_time_mins: f64,

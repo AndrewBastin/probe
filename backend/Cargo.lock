@@ -656,6 +656,7 @@ dependencies = [
  "hmac",
  "jwt",
  "lazy_static",
+ "regex",
  "reqwest",
  "rocket",
  "rocket_cors",
