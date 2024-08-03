@@ -14,7 +14,7 @@ probe is a web app that scans your package.json file against NPM and provides de
 We developed probe to address the challenge of sustaining open source projects and encouraging more developers to contribute, either through code or financial support.
 An insightful tool that inspires developers to give back to the community and fosters a more sustainable open source ecosystem.
 
-[Screenshot placeholder]
+<img width="1200" alt="Screenshot 2024-08-03 at 9 07 54 PM" src="https://github.com/user-attachments/assets/b88a1345-7537-447d-96da-6f89d406d4a8" alt="Probe Landing page">
 
 ## Inspiration
 Project probe is inspired by the ongoing discussions about open source sustainability and the need for better ways to support maintainers.
@@ -39,9 +39,6 @@ While there are tools that scan for vulnerabilities or outdated packages, probe 
 ## Planned Features
  - **Integration with other package ecosystems**: Integrate with Cargo, PyPi, pkgs.go.dev and more.
  - **Analytics on PR reviews and authors**: Insights into cycle time and general PR related statistics.
-
-## Demo
-[Web app demo placeholder]
 
 ## Usage
 You can use the hosted instance of the app at [https://dev-probe.app](https://dev-probe.app).
